@@ -2,6 +2,7 @@ import csv
 # get training data
 import math
 from tqdm import tqdm
+import random
 
 # only select mid-career datasets
 file = open("uci_adult.csv", encoding='utf-8-sig')
@@ -93,7 +94,6 @@ for row in training:
             key = "X" + str(i + 1)
             xCountsY0[key] += int(row[i]) * trainingWeights[j]
     j += 1
-# y0Counts = len(training) - y1Counts
 
 # do complete laplace MAP estimates
 MAPY0 = {}
@@ -108,9 +108,6 @@ for i in range(len(xCountsY1)):
     estMAPY0 = (xCountsY0[countKey] + 1) / float(y0Counts + 2)
     MAPY0[mapKey] = estMAPY0
 
-# print(MAPY0)
-# print(MAPY1)
-
 # predict testing data with model
 # get testing data
 file = open("challenge-test.csv")
@@ -121,7 +118,10 @@ for row in reader:
     testing.append(row)
 # predict testing data
 results = []
+totalTests = 0
+j = 0
 for row in testing:
+    totalTests += testingWeights[j]
     pY1 = math.log(y1Counts / float(y0Counts + y1Counts))
     pY0 = math.log(y0Counts / float(y0Counts + y1Counts))
     l1 = pY1
@@ -145,10 +145,72 @@ for row in testing:
         results.append("1")
     else:
         results.append("0")
+    j += 1
 
 # check accuracy
 count = 0
 for i in range(len(results)):
     if results[i] == testing[i][-1]:
-        count += 1
-print("Accuracy is:", float(count / len(testing)))
+        count += testingWeights[i]
+print("Number of training data (rows, before multiplying by weights) is:", len(training))
+print("Number of testing data (rows, before multiplying by weights) is:", len(testing))
+print("Accuracy is:", float(count) / totalTests)
+
+# throw in every combination
+possibles = []
+while len(possibles) < 8:
+    person = []
+    for i in range(3):
+        person.append(str(random.randint(0, 1)))
+    if person not in possibles:
+        possibles.append(person)
+
+# Further Testings
+possibleResults = []
+confidence = []
+j = 0
+for row in possibles:
+    pY1 = math.log(y1Counts / float(y0Counts + y1Counts))
+    pY0 = math.log(y0Counts / float(y0Counts + y1Counts))
+    l1 = pY1
+    l0 = pY0
+    # assume Y = 1
+    for i in range(len(row)):
+        mapKey = "X" + str(i + 1) + "MAP"
+        if row[i] == "1":
+            l1 += math.log(MAPY1[mapKey])
+        else:
+            l1 += math.log(1 - MAPY1[mapKey])
+    # assume Y = 0
+    for i in range(len(row)):
+        mapKey = "X" + str(i + 1) + "MAP"
+        if row[i] == "1":
+            l0 += math.log(MAPY0[mapKey])
+        else:
+            l0 += math.log(1 - MAPY0[mapKey])
+    # choose more likely Y, add to result
+    if l1 > l0:
+        possibleResults.append("1")
+    else:
+        possibleResults.append("0")
+    j += 1
+    confidence.append(l1 - l0)
+
+
+for i in range(len(possibles)):
+    race = "White"
+    sex = "Male"
+    native = "United States"
+    income = "> 50k"
+    if possibles[i][0] == "0":
+        race = "not white"
+    if possibles[i][1] == "0":
+        sex = "female"
+    if possibles[i][2] == "0":
+        native = "not the U.S."
+    if possibleResults[i] == "0":
+        income = "<= 50k"
+    print("This person is " + race + " " + sex + " from " + native + ", and income is " + income + ". Confidence "
+                                                                                                   "score for this "
+                                                                                                   "predicion is " +
+          str(confidence[i]))
